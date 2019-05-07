@@ -1,0 +1,462 @@
+
+--Get TimeStamp for when the process kicks off
+Set Process_Start = (Select Current_Timestamp());
+
+--Find Start Date
+Set range_Start = (Select Max(FactEndDateTime) from QueryHistory.InsertLog);
+
+--If First Run then start date will be 8 days back from current time.
+--Choose 8 days to ensure all data is pulled as history only holds 7
+Set Start_Date = (IFNULL($range_Start, DateAdd(day, -8, Current_TimeStamp())));
+
+--Create Range_End for Performance improvements.
+--Attempted to put TimeStamp function in join and performance suffered.
+set range_End = Current_Timestamp();
+
+
+--Create Temp table to hold all history data from date range above
+CREATE OR REPLACE TEMPORARY TABLE Query_History (
+Query_ID String
+  , Query_Text String
+  , Database_Name String
+  , Schema_Name String
+  , Query_Type String
+  , Session_ID number
+  , User_Name String
+  , Role_Name String
+  , Warehouse_Name String
+  , Warehouse_Size String
+  , Warehouse_Type String
+  , Cluster_Number Number
+  , Query_Tag String
+  , Execution_Status String
+  , Error_Code number
+  , Error_Message String
+  , Start_Time timestamp
+  , End_Time timestamp
+  , TOTAL_ELAPSED_TIME NUMBER
+   , BYTES_SCANNED NUMBER
+   , ROWS_PRODUCED NUMBER
+   , COMPILATION_TIME NUMBER
+   , EXECUTION_TIME NUMBER
+   , QUEUED_PROVISIONING_TIME NUMBER
+   , QUEUED_REPAIR_TIME	NUMBER
+   , QUEUED_OVERLOAD_TIME NUMBER
+   , TRANSACTION_BLOCKED_TIME NUMBER
+   , OUTBOUND_DATA_TRANSFER_CLOUD TEXT
+   , OUTBOUND_DATA_TRANSFER_REGION TEXT
+   , OUTBOUND_DATA_TRANSFER_BYTES NUMBER
+   , INBOUND_DATA_TRANSFER_CLOUD TEXT
+   , INBOUND_DATA_TRANSFER_REGION TEXT
+   , INBOUND_DATA_TRANSFER_BYTES NUMBER
+   , Start_Date Date
+   , Start_TS Time
+   , End_Date Date
+   , End_TS Time
+)
+as  
+ Select Query_ID 
+      , Query_Text 
+      , Database_Name 
+      , Schema_Name 
+      , Query_Type 
+      , Session_ID 
+      , User_Name
+      , Role_Name 
+      , Warehouse_Name 
+      , Warehouse_Size 
+      , Warehouse_Type 
+      , Cluster_Number 
+      , Query_Tag 
+      , Execution_Status 
+      , Error_Code 
+      , Error_Message 
+      , Start_Time::DateTime
+      , End_Time::DateTime
+      , TOTAL_ELAPSED_TIME 
+      , BYTES_SCANNED 
+      , ROWS_PRODUCED 
+      , COMPILATION_TIME 
+      , EXECUTION_TIME 
+      , QUEUED_PROVISIONING_TIME 
+      , QUEUED_REPAIR_TIME	
+      , QUEUED_OVERLOAD_TIME 
+      , TRANSACTION_BLOCKED_TIME 
+      , OUTBOUND_DATA_TRANSFER_CLOUD 
+      , OUTBOUND_DATA_TRANSFER_REGION 
+      , OUTBOUND_DATA_TRANSFER_BYTES 
+      , INBOUND_DATA_TRANSFER_CLOUD 
+      , INBOUND_DATA_TRANSFER_REGION 
+      , INBOUND_DATA_TRANSFER_BYTES 
+      , Start_Time::Date as Start_Date
+      , Start_Time::Time as Start_TS
+      , End_Time::Date as End_Date
+      , End_Time::Time as End_TS
+from table(information_schema.query_history(
+end_time_range_start => to_timestamp_ltz($range_Start),
+end_time_range_end => to_timestamp_ltz($range_End),
+ RESULT_LIMIT => 10000
+))
+ORDER BY start_time desc
+, Query_Text ASC
+, TOTAL_ELAPSED_TIME ASC
+;
+
+--Fill Session Dim
+Merge into QueryHistory.Dim_Session as Target
+using(select Distinct Session_ID
+        from Query_History
+        where Session_ID is not null) as Source
+      ON Target.Session_ID = Source.Session_ID
+WHEN NOT Matched
+THEN INSERT (Session_ID
+            , Created_Date
+            , Modified_Date)
+     Values(Source.Session_ID
+           , CURRENT_TIMESTAMP()::dateTime
+           , CURRENT_TIMESTAMP()::dateTime);
+
+
+--Fill Query Details Dim
+Merge into QueryHistory.Dim_QueryDetails as Target
+using(select Distinct Query_Text
+        from Query_History
+        where Query_Text is not null) as Source
+      ON Target.Query_Text = Source.Query_Text
+WHEN NOT Matched
+THEN INSERT (Query_Text
+            , Created_Date
+            , Modified_Date)
+     Values(Source.Query_Text
+           , CURRENT_TIMESTAMP()::dateTime
+           , CURRENT_TIMESTAMP()::dateTime);
+
+--Fill Database Dim
+Merge into QueryHistory.Dim_Database as Target
+using(select Distinct Database_Name
+        from Query_History
+        where database_Name is not null) as Source
+      ON Target.Database_Name = Source.Database_Name
+WHEN NOT Matched
+THEN INSERT (Database_Name
+            , Created_Date
+            , Modified_Date)
+     Values(Source.Database_Name
+           , CURRENT_TIMESTAMP()::dateTime
+           , CURRENT_TIMESTAMP()::dateTime);
+           
+
+--Fill Schema Dim
+Merge into QueryHistory.dim_Schema as Target
+using(select Distinct Schema_Name
+        from Query_History
+        where Schema_Name is not null) as Source
+      ON Target.Schema_Name = Source.Schema_Name
+WHEN NOT Matched
+THEN INSERT (Schema_Name
+            , Created_Date
+            , Modified_Date)
+     Values(Source.Schema_Name
+           , CURRENT_TIMESTAMP()::dateTime
+           , CURRENT_TIMESTAMP()::dateTime);
+           
+--Fill Query Type Dim 
+Merge into QueryHistory.dim_Query_Type as Target
+using(select Distinct Query_Type
+        from Query_History
+        where Query_Type is not null) as Source
+      ON Target.Query_Type = Source.Query_Type
+WHEN NOT Matched
+THEN INSERT (Query_Type
+            , Created_Date
+            , Modified_Date)
+     Values(Source.Query_Type
+           , CURRENT_TIMESTAMP()::dateTime
+           , CURRENT_TIMESTAMP()::dateTime);
+           
+--Fill User Dim
+Merge into QueryHistory.dim_User as Target
+using(select Distinct User_Name
+        from Query_History
+        where User_Name is not null) as Source
+      ON Target.User_Name = Source.User_Name
+WHEN NOT Matched
+THEN INSERT (User_Name
+            , Created_Date
+            , Modified_Date)
+     Values(Source.User_Name
+           , CURRENT_TIMESTAMP()::dateTime
+           , CURRENT_TIMESTAMP()::dateTime);          
+           
+           
+ --Fill Role Dim
+Merge into QueryHistory.dim_Role as Target
+using(select Distinct Role_Name
+        from Query_History
+        where Role_Name is not null) as Source
+      ON Target.Role_Name = Source.Role_Name
+WHEN NOT Matched
+THEN INSERT (Role_Name
+            , Created_Date
+            , Modified_Date)
+     Values(Source.Role_Name
+           , CURRENT_TIMESTAMP()::dateTime
+           , CURRENT_TIMESTAMP()::dateTime);
+           
+
+--Fill warehouse Dim
+Merge into QueryHistory.dim_Warehouse as Target
+using(select Distinct Warehouse_Name
+        from Query_History
+        where Warehouse_Name is not null) as Source
+      ON Target.Warehouse_Name = Source.Warehouse_Name
+WHEN NOT Matched
+THEN INSERT (Warehouse_Name
+            , Created_Date
+            , Modified_Date)
+     Values(Source.Warehouse_Name
+           , CURRENT_TIMESTAMP()::dateTime
+           , CURRENT_TIMESTAMP()::dateTime);          
+           
+
+--Fill Warehouse Size Dim
+Merge into QueryHistory.dim_Warehouse_Size as Target
+using(select Distinct Warehouse_Size
+        from Query_History
+        where Warehouse_Size is not null) as Source
+      ON Target.Warehouse_Size = Source.Warehouse_Size
+WHEN NOT Matched
+THEN INSERT (Warehouse_Size
+            , Created_Date
+            , Modified_Date)
+     Values(Source.Warehouse_Size
+           , CURRENT_TIMESTAMP()::dateTime
+           , CURRENT_TIMESTAMP()::dateTime);
+ 
+
+--Fill Warehouse Type Dim
+Merge into QueryHistory.dim_Warehouse_Type as Target
+using(select Distinct Warehouse_Type
+        from Query_History
+        where Warehouse_Type is not null) as Source
+      ON Target.Warehouse_Type = Source.Warehouse_Type
+WHEN NOT Matched
+THEN INSERT (Warehouse_Type
+            , Created_Date
+            , Modified_Date)
+     Values(Source.Warehouse_Type
+           , CURRENT_TIMESTAMP()::dateTime
+           , CURRENT_TIMESTAMP()::dateTime);
+                     
+
+           
+--Fill Execution Status Dim
+Merge into QueryHistory.dim_Execution_Status as Target
+using(select Distinct Execution_Status
+        from Query_History
+        where Execution_Status is not null) as Source
+      ON Target.Execution_Status = Source.Execution_Status
+WHEN NOT Matched
+THEN INSERT (Execution_Status
+            , Created_Date
+            , Modified_Date)
+     Values(Source.Execution_Status
+           , CURRENT_TIMESTAMP()::dateTime
+           , CURRENT_TIMESTAMP()::dateTime);
+           
+           
+--Fill Query Error Dim
+Merge into QueryHistory.dim_Query_Error as Target
+using(select Distinct 
+        Query_ID
+        , Error_Code
+        , Error_Message
+        from Query_History
+        where Error_Code is not null) as Source
+      ON Target.Query_Id = Source.Query_Id
+      AND  Target.Error_Code = Source.Error_Code
+WHEN NOT Matched
+THEN INSERT (Query_Id
+            , Error_Code
+            , Error_Message
+            , Created_Date
+            , Modified_Date)
+     Values(Source.Query_Id
+           , Source.Error_Code
+           , Source.Error_Message
+           , CURRENT_TIMESTAMP()::dateTime
+           , CURRENT_TIMESTAMP()::dateTime);
+
+
+--Merge Results into Query Error
+Merge into QueryHistory.dim_Query_Error as Target
+using(select Distinct 
+        Query_ID
+        , Error_Code
+        , Error_Message
+        from Query_History
+        where Error_Code is not null) as Source
+      ON Target.Query_Id = Source.Query_Id
+      AND  Target.Error_Code = Source.Error_Code
+WHEN NOT Matched
+THEN INSERT (Query_Id
+            , Error_Code
+            , Error_Message
+            , Created_Date
+            , Modified_Date)
+     Values(Source.Query_Id
+           , Source.Error_Code
+           , Source.Error_Message
+           , CURRENT_TIMESTAMP()::dateTime
+           , CURRENT_TIMESTAMP()::dateTime);
+
+
+--Merge Results into Fact_Query
+Merge Into QueryHistory.Fact_Query as Target
+    Using(Select qh.Query_ID
+          , qh.Cluster_Number
+          , qh.Query_Tag
+          , qh.Start_Time
+          , qh.End_Time
+          , qh.TOTAL_ELAPSED_TIME
+          , qh.BYTES_SCANNED 
+          , qh.ROWS_PRODUCED 
+          , qh.COMPILATION_TIME 
+          , qh.EXECUTION_TIME 
+          , qh.QUEUED_PROVISIONING_TIME 
+          , qh.QUEUED_REPAIR_TIME	
+          , qh.QUEUED_OVERLOAD_TIME 
+          , qh.TRANSACTION_BLOCKED_TIME 
+          , qh.OUTBOUND_DATA_TRANSFER_CLOUD 
+          , qh.OUTBOUND_DATA_TRANSFER_REGION 
+          , qh.OUTBOUND_DATA_TRANSFER_BYTES 
+          , qh.INBOUND_DATA_TRANSFER_CLOUD 
+          , qh.INBOUND_DATA_TRANSFER_REGION 
+          , qh.INBOUND_DATA_TRANSFER_BYTES 
+          , IFNULL(qd.Query_Key,-1) as Query_Key
+          , IFNULL(dss.Session_Key,-1) as Session_Key
+          , IFNULL(ddb.Database_Key,-1) as Database_Key
+          , IFNULL(ds.Schema_Key,-1) as Schema_Key
+          , IFNULL(dqt.Query_Type_Key,-1) as Query_Type_Key
+          , IFNULL(du.User_Key,-1) as User_Key
+          , IFNULL(dr.Role_Key,-1) as Role_Key
+          , IFNULL(dw.Warehouse_Key,-1) as Warehouse_Key
+          , IFNULL(dwt.Warehouse_Type_Key,-1) as Warehouse_Type_Key
+          , IFNULL(dws.Warehouse_Size_Key,-1) as Warehouse_Size_Key
+          , IFNULL(des.Execution_Status_Key,-1) as Execution_Status_Key
+          , IFNULL(de.Error_Key,-1) as Error_Key
+          , sdd.DateKey as Start_Date_Key
+          , edd.DateKey as End_Date_Key
+          from Query_History qh
+          Left join QueryHistory.Dim_Session dss on qh.Session_ID = dss.Session_ID
+          left join QueryHistory.Dim_QueryDetails qd on qh.Query_Text = qd.Query_Text
+          left join QueryHistory.Dim_Database as ddb on qh.Database_Name = ddb.Database_Name
+          left join QueryHistory.Dim_Schema ds on qh.Schema_Name = ds.Schema_Name
+          left join QueryHistory.dim_Query_Type dqt on qh.Query_Type = dqt.Query_Type
+          left join QueryHistory.dim_User du on qh.User_Name = du.User_Name
+          left join QueryHistory.dim_Role dr on qh.Role_Name = dr.Role_Name
+          left join QueryHistory.dim_Warehouse dw on qh.Warehouse_Name = dw.Warehouse_Name
+          left join QueryHistory.dim_Warehouse_Size dws on qh.Warehouse_Size = dws.Warehouse_Size
+          left join QueryHistory.dim_Warehouse_Type dwt on qh.Warehouse_Type = dwt.Warehouse_Type
+          Left join QueryHistory.dim_Execution_Status des on qh.Execution_Status = des.Execution_Status 
+          Left join QueryHistory.dim_Query_Error de on qh.Query_Id = de.Query_Id
+                                                   and qh.Error_Code = de.Error_Code
+          left join QueryHistory.Dim_Date as sdd on qh.Start_Date = sdd.Date
+          left join QueryHistory.Dim_Date as edd on qh.End_Date = edd.Date) as Source
+          
+    ON TARGET.Session_Key = Source.Session_Key
+    AND Target.Query_ID = Source.Query_ID
+    
+    WHEN NOT MATCHED 
+    THEN INSERT (Query_ID
+                 , Cluster_Number 
+                 , Query_Tag 
+                 , Start_Time 
+                 , End_Time 
+                 , TOTAL_ELAPSED_TIME 
+                 , BYTES_SCANNED 
+                 , ROWS_PRODUCED
+                 , COMPILATION_TIME 
+                 , EXECUTION_TIME 
+                 , QUEUED_PROVISIONING_TIME 
+                 , QUEUED_REPAIR_TIME
+                 , QUEUED_OVERLOAD_TIME 
+                 , TRANSACTION_BLOCKED_TIME 
+                 , OUTBOUND_DATA_TRANSFER_CLOUD 
+                 , OUTBOUND_DATA_TRANSFER_REGION 
+                 , OUTBOUND_DATA_TRANSFER_BYTES 
+                 , INBOUND_DATA_TRANSFER_CLOUD 
+                 , INBOUND_DATA_TRANSFER_REGION 
+                 , INBOUND_DATA_TRANSFER_BYTES 
+                 , Query_Key 
+                 , Session_Key 
+                 , Database_Key 
+                 , Schema_Key 
+                 , Query_Type_Key 
+                 , User_Key 
+                 , Role_Key 
+                 , Warehouse_Key 
+                 , Warehouse_Size_Key 
+                 , Warehouse_Type_Key 
+                 , Execution_Status_Key 
+                 , Error_Key 
+                 , Start_Date_Key
+                 , End_Date_Key)
+    Values (Source.Query_ID
+             , Source.Cluster_Number 
+             , Source.Query_Tag 
+             , Source.Start_Time 
+             , Source.End_Time 
+             , Source.TOTAL_ELAPSED_TIME 
+             , Source.BYTES_SCANNED 
+             , Source.ROWS_PRODUCED
+             , Source.COMPILATION_TIME 
+             , Source.EXECUTION_TIME 
+             , Source.QUEUED_PROVISIONING_TIME 
+             , Source.QUEUED_REPAIR_TIME
+             , Source.QUEUED_OVERLOAD_TIME 
+             , Source.TRANSACTION_BLOCKED_TIME 
+             , Source.OUTBOUND_DATA_TRANSFER_CLOUD 
+             , Source.OUTBOUND_DATA_TRANSFER_REGION 
+             , Source.OUTBOUND_DATA_TRANSFER_BYTES 
+             , Source.INBOUND_DATA_TRANSFER_CLOUD 
+             , Source.INBOUND_DATA_TRANSFER_REGION 
+             , Source.INBOUND_DATA_TRANSFER_BYTES 
+             , Source.Query_Key 
+             , Source.Session_Key 
+             , Source.Database_Key 
+             , Source.Schema_Key 
+             , Source.Query_Type_Key 
+             , Source.User_Key 
+             , Source.Role_Key 
+             , Source.Warehouse_Key 
+             , Source.Warehouse_Size_Key 
+             , Source.Warehouse_Type_Key 
+             , Source.Execution_Status_Key 
+             , Source.Error_Key 
+             , Source.Start_Date_Key
+             , Source.End_Date_Key);
+
+
+
+
+
+--Get Total number of records from history table
+Set ImportCount = (Select Count(1) from Query_History);
+
+--Update Log Table
+Insert into QueryHistory.InsertLog(FactEndDateTime, Last_QueryFact_ID, Total_Records_Imported, Process_Start, Process_End)
+Select Max(End_Time)
+, max(QueryFact_ID)
+, $ImportCount
+, $Process_Start
+, Current_TimeStamp()
+from QueryHistory.Fact_query;
+
+
+DROP TABLE Query_History;
+
+
+
+
+
