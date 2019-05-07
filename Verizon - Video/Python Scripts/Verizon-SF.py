@@ -53,7 +53,7 @@ for i in range(0,(days+1)):
         header = "insert into analytics_video.FACT_TUNING_CHANNEL_RPT "
 
     #Execute query 
-    sfQuery = ''.join([header  , "select stgf.TRANSACTION_RECORD_ID, "
+    sfQuery = ''.join([header  , " select stgf.TRANSACTION_RECORD_ID, "
      , "stgf.INSERT_RECORD_TS, "
      , "stgf.VHO_ID, "
      , "stgf.STB_TYPE, "
