@@ -1,0 +1,283 @@
+
+   
+create schema QueryHistory;
+
+Create or Replace Table QueryHistory.Dim_Session
+(
+   Session_Key int identity(1,1)
+ , Session_ID String
+ , Created_Date datetime default CURRENT_TIMESTAMP()
+ , Modified_Date datetime default CURRENT_TIMESTAMP()
+ , IsActive Number default 1
+);
+
+Insert into QueryHistory.Dim_Session
+Select -1
+, NULL
+, CURRENT_TIMESTAMP()::dateTime
+, CURRENT_TIMESTAMP()::dateTime
+,1; 
+
+
+           
+           
+Create or Replace Table QueryHistory.Dim_QueryDetails
+(
+   Query_Key int identity(1,1)
+ , Query_Text String
+ , Created_Date datetime default CURRENT_TIMESTAMP()
+ , Modified_Date datetime default CURRENT_TIMESTAMP()
+ , IsActive Number default 1
+);
+
+Insert into QueryHistory.Dim_QueryDetails
+Select -1
+, NULL
+, CURRENT_TIMESTAMP()::dateTime
+, CURRENT_TIMESTAMP()::dateTime
+,1; 
+
+
+
+
+Create or Replace Table QueryHistory.dim_Database
+(
+   Database_Key int identity(1,1)
+ , Database_Name String
+ , Created_Date datetime default CURRENT_TIMESTAMP()
+ , Modified_Date datetime default CURRENT_TIMESTAMP()
+ , IsActive Number default 1
+);
+
+Insert into QueryHistory.Dim_Database
+Select -1
+, NULL
+, CURRENT_TIMESTAMP()::dateTime
+, CURRENT_TIMESTAMP()::dateTime
+,1; 
+
+
+   
+Create or Replace Table QueryHistory.dim_Schema
+(
+   Schema_Key int identity(1,1)
+ , Schema_Name String
+ , Created_Date datetime default CURRENT_TIMESTAMP()
+ , Modified_Date datetime default CURRENT_TIMESTAMP()
+ , IsActive Number default 1
+);
+
+Insert into QueryHistory.dim_Schema
+Select -1
+, NULL
+, CURRENT_TIMESTAMP()::dateTime
+, CURRENT_TIMESTAMP()::dateTime
+,1; 
+
+
+
+
+ Create or Replace Table QueryHistory.dim_Query_Type
+(
+   Query_Type_Key int identity(1,1)
+ , Query_Type String
+ , Created_Date datetime default CURRENT_TIMESTAMP()
+ , Modified_Date datetime default CURRENT_TIMESTAMP()
+ , IsActive Number default 1
+);
+
+
+Insert into QueryHistory.dim_Query_Type
+Select -1
+, NULL
+, CURRENT_TIMESTAMP()::dateTime
+, CURRENT_TIMESTAMP()::dateTime
+,1; 
+
+
+           
+
+ Create or Replace Table QueryHistory.dim_User
+(
+   User_Key int identity(1,1)
+ , User_Name String
+ , Created_Date datetime default CURRENT_TIMESTAMP()
+ , Modified_Date datetime default CURRENT_TIMESTAMP()
+ , IsActive Number default 1
+);
+
+Insert into QueryHistory.dim_User
+Select -1
+, NULL
+, CURRENT_TIMESTAMP()::dateTime
+, CURRENT_TIMESTAMP()::dateTime
+,1; 
+
+
+ 
+
+Create or Replace Table QueryHistory.dim_Role
+(
+   Role_Key int identity(1,1)
+ , Role_Name String
+ , Created_Date datetime default CURRENT_TIMESTAMP()
+ , Modified_Date datetime default CURRENT_TIMESTAMP()
+ , IsActive Number default 1
+);
+
+Insert into QueryHistory.dim_Role
+Select -1
+, NULL
+, CURRENT_TIMESTAMP()::dateTime
+, CURRENT_TIMESTAMP()::dateTime
+,1; 
+
+
+
+
+Create or Replace Table QueryHistory.dim_Warehouse
+(
+   Warehouse_Key int identity(1,1)
+ , Warehouse_Name String
+ , Created_Date datetime default CURRENT_TIMESTAMP()
+ , Modified_Date datetime default CURRENT_TIMESTAMP()
+ , IsActive Number default 1
+);
+
+Insert into QueryHistory.dim_Warehouse
+Select -1
+, NULL
+, CURRENT_TIMESTAMP()::dateTime
+, CURRENT_TIMESTAMP()::dateTime
+,1; 
+
+
+
+
+
+ Create or Replace Table QueryHistory.dim_Warehouse_Size
+(
+   Warehouse_Size_Key int identity(1,1)
+ , Warehouse_Size String
+ , Created_Date datetime default CURRENT_TIMESTAMP()
+ , Modified_Date datetime default CURRENT_TIMESTAMP()
+ , IsActive Number default 1
+);
+
+Insert into QueryHistory.dim_WareHouse_Size
+Select -1
+, NULL
+, CURRENT_TIMESTAMP()::dateTime
+, CURRENT_TIMESTAMP()::dateTime
+,1; 
+
+
+ Create or Replace Table QueryHistory.dim_Warehouse_Type
+(
+   Warehouse_Type_Key int identity(1,1)
+ , Warehouse_Type String
+ , Created_Date datetime default CURRENT_TIMESTAMP()
+ , Modified_Date datetime default CURRENT_TIMESTAMP()
+ , IsActive Number default 1
+);
+
+Insert into QueryHistory.dim_Warehouse_Type
+Select -1
+, NULL
+, CURRENT_TIMESTAMP()::dateTime
+, CURRENT_TIMESTAMP()::dateTime
+,1;
+
+
+          
+ 
+Create or Replace Table QueryHistory.dim_Execution_Status
+(
+   Execution_Status_Key int identity(1,1)
+ , Execution_Status String
+ , Created_Date datetime default CURRENT_TIMESTAMP()
+ , Modified_Date datetime default CURRENT_TIMESTAMP()
+ , IsActive Number default 1
+);
+
+Insert into QueryHistory.dim_Execution_Status
+Select -1
+, NULL
+, CURRENT_TIMESTAMP()::dateTime
+, CURRENT_TIMESTAMP()::dateTime
+,1; 
+
+
+ 
+Create or Replace Table QueryHistory.dim_Query_Error
+(
+   Error_Key int identity(1,1)
+ , Query_ID String
+ , Error_Code Number
+ , Error_Message String
+ , Created_Date datetime default CURRENT_TIMESTAMP()
+ , Modified_Date datetime default CURRENT_TIMESTAMP()
+ , IsActive Number default 1
+);
+
+Insert into QueryHistory.dim_Query_Error
+Select -1
+, NULL
+, -1
+, NULL
+, CURRENT_TIMESTAMP()::dateTime
+, CURRENT_TIMESTAMP()::dateTime
+,1; 
+
+
+
+Create or Replace Table QueryHistory.InsertLog
+(RunId int identity(1,1)
+, RunDateTime timestamp_ltz
+, QueryFact_ID int
+, FactEndDateTime timestamp_ltz
+);
+
+
+
+Create or replace table QueryHistory.Fact_Query
+ (
+   QueryFact_ID int Identity(1,1)
+   , Query_ID String
+   , Cluster_Number Number
+   , Query_Tag String
+   , Start_Time datetime
+   , End_Time datetime
+   , TOTAL_ELAPSED_TIME NUMBER
+   , BYTES_SCANNED NUMBER
+   , ROWS_PRODUCED NUMBER
+   , COMPILATION_TIME NUMBER
+   , EXECUTION_TIME NUMBER
+   , QUEUED_PROVISIONING_TIME NUMBER
+   , QUEUED_REPAIR_TIME	NUMBER
+   , QUEUED_OVERLOAD_TIME NUMBER
+   , TRANSACTION_BLOCKED_TIME NUMBER
+   , OUTBOUND_DATA_TRANSFER_CLOUD TEXT
+   , OUTBOUND_DATA_TRANSFER_REGION TEXT
+   , OUTBOUND_DATA_TRANSFER_BYTES NUMBER
+   , INBOUND_DATA_TRANSFER_CLOUD TEXT
+   , INBOUND_DATA_TRANSFER_REGION TEXT
+   , INBOUND_DATA_TRANSFER_BYTES NUMBER
+   , Query_Key Number
+   , Session_Key Number
+   , Database_Key Number
+   , Schema_Key Number
+   , Query_Type_Key Number
+   , User_Key Number
+   , Role_Key Number
+   , Warehouse_Key Number
+   , Warehouse_Size_Key Number
+   , Warehouse_Type_Key Number
+   , Execution_Status_Key Number
+   , Error_Key Number
+   , Start_Date_Key Number
+   , End_Date_Key Number
+ );
+ 
+ 
+ 
