@@ -5,10 +5,11 @@ import datetime
 from datetime import date
 from datetime import timedelta
 
+###########################################################
 ################Define Functions###########################
+###########################################################
 
 ################lastDayofMonth#############################
-
 def lastDayofMonth(any_day):
     next_month = any_day.replace(day=28) + datetime.timedelta(days=4)  # this is to offset for Feb
     return next_month - datetime.timedelta(days=next_month.day)
@@ -20,7 +21,6 @@ def createDateValues(start_Year, End_Year):
     Year = 0
     Month = 0
     Quarter = 0 
-    IsWeekDay = 1
 
     #DayOfWeekInYear
     SundayOfWeekInYear = 0
@@ -266,10 +266,6 @@ def createDateValues(start_Year, End_Year):
             SaturdayOfWeekInQuarter = SaturdayOfWeekInQuarter + 1
             DayofWeekInQuarter = SaturdayOfWeekInQuarter
 
-        #Is the day a workday?
-        if(DayOfWeek == 7 or DayOfWeek == 1):
-            IsWeekDay = 1
-
         #Month
         if(newDate.month == 1):
             MonthName = 'January'
@@ -336,10 +332,21 @@ def createDateValues(start_Year, End_Year):
         WeekofYear = WeekValue 
         WeekofMonth = WeekMonthValue
         WeekofQuarter = WeekQuarterValue 
+
+
+        #Is the day a workday?
+        if(DayOfWeek == 7 or DayOfWeek == 1):
+            IsWeekDay = 0
+        else:
+            IsWeekDay = 1
+        
         
         print(Date_Key, Date, FullDateDDMM, FullDateMMDD, DayOfMonth, DaySuffix, DayName, DayOfWeek, DayOfWeekInMonth, DayOfWeekInYear, DayofWeekInQuarter, DayOfYear
         , WeekofMonth, WeekofQuarter, WeekofYear, Month, MonthName, MonthOfQuarter, Quarter, QuarterName, Year, YearName, MonthYear, MMYYY, FirstDayofMonth, LastDayofMonth
         , FirstDayofQuarter, LastDayOfQuarter, FirstDayofYear, LastDayofYear, IsWeekDay)
 
 
+
+###########################################################
+###################Execute Process#########################
 createDateValues(1975, 1976)
