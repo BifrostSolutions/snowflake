@@ -308,9 +308,7 @@ CREATE or REPLACE TABLE	QueryHistory.Dim_Date
 		LastDayOfQuarter DATE,
 		FirstDayOfYear DATE,
 		LastDayOfYear DATE,
-		IsHoliday NUMBER,-- Flag 1=National Holiday, 0-No National Holiday
 		IsWeekday NUMBER,-- 0=Week End ,1=Week Day
-		HolidayName string--Name of Holiday
     );
 
 
