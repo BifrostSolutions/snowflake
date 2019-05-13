@@ -8,17 +8,24 @@ USER = 'Cirwin'
 PASSWORD = 'Cmimln!43'
 
 #Snowflake Warehouse
-WAREHOUSE = 'Load_WH'
+WAREHOUSE = 'DEMO_WH'
 
 #Add Schema and database together for a single transaction
 DATABASE = 'Viva_POC'
 
+#Add Schema together for a single transaction
+Schema = 'Stage'
+
+#Table that you want to insert
+TABLENAME = 'analytics_video.fact_dm_tuning_channel'
+
 #Total number of days
 days = 365
 i = 0
+rangeMax = 74
 
 
-# Create Connections
+# Create Connections    
 ctx = snowflake.connector.connect(
     user=USER,
     password=PASSWORD,
@@ -29,94 +36,69 @@ ctx = snowflake.connector.connect(
 cs = ctx.cursor()
 
 #Create Query 
-for i in range(0,(days+1)):
+for i in range(0,rangeMax):
 
-    dayValue = days - i
+    dayValue = rangeMax - (i)
     sfQuery = ""
 
     header = ""
     if (i == 0 ):
 
+        dayStartValue = days - (i)
+        dayEndValue = days - 4
+
         #Which warehouse to use. 
-        usingWarehouse = "Use warehouse Load_WH;"
+        usingWarehouse = "Use warehouse " + WAREHOUSE + ";"
         cs.execute(usingWarehouse)
 
         #which database to use
-        usingDatabase =  "Use Database Viva_POC;"
+        usingDatabase =  "Use Database " + DATABASE + ";"
         cs.execute(usingDatabase)
 
-        usingSchema = "use Schema Stage;"
+        usingSchema = "use Schema " + Schema +  ";"
         cs.execute(usingSchema)
 
-        header = "Create or replace table analytics_video.FACT_TUNING_CHANNEL_RPT as  "
+        header = "Create or replace table " + TABLENAME + " as  "
     else:
-        header = "insert into analytics_video.FACT_TUNING_CHANNEL_RPT "
+        
+        dayStartValue = dayEndValue - 1
+        
+        dayEndValue = dayEndValue - 5
+
+        header = "insert into " + TABLENAME 
 
     #Execute query 
-    sfQuery = ''.join([header  , " select stgf.TRANSACTION_RECORD_ID, "
-     , "stgf.INSERT_RECORD_TS, "
+    sfQuery = ''.join([header  , "select stgf.TRANSACTION_RECORD_ID, "
      , "stgf.VHO_ID, "
      , "stgf.STB_TYPE, "
      , "stgf.STB, "
      , "stgf.BTCH_NBR, "
-     , "stgf.LOGIN_TM, "
+     , "stgf.LOGIN_TM::timestamp as LOGIN_TM, "
      , "stgf.METRIC_TYPE, "
      , "stgf.VZ_TUNER_WRPR, "
-     , "stgf.ACTVTY_TS, "    
-     , "stgf.ACTVTY_SEQ_NBR,"
-     , "stgf.APP_ID,"
-     , "stgf.TUNING_INFO,"
-     , "stgf.VIRT_CHNL_NBR, " 
+     , "stgf.ACTVTY_TS::timestamp as ACTVTY_TS, "    
+     , "stgf.ACTVTY_SEQ_NBR, "
+     , "stgf.APP_ID, "
+     , "stgf.CREATN_TS as CREATN_TS, "
+     , "stgf.VIRT_CHNL_NBR, "
      , "stgf.CLIENT_ID, "
      , "stgf.VMS_ID, "
      , "stgf.CHANNEL_INDEX, "
-     , "stgf.CHANNEL_NUMBER, "
-     , "dd.my_date::date as CHANNEL_DT, "
-     , "CONCAT(dd.my_date::string , \' \' , CAST(stgf.CHANNEL_TS as Time)::string)::datetime as CHANNEL_TS, "
-     , "stgf.SECONDS::Number as Seconds, "
-     ,"stgf.PROGRAM_INFO, " 
-     ,"stgf.SVC_ID, "
-     ,"stgf.STRSTATIONNAME, "
-     ,"stgf.STRSTATIONCALLSIGN, " 
-     ,"stgf.OMNI_CATEGORY, "
-     ,"stgf.OMNI_CHANNEL_NAME, " 
-     ,"stgf.INCLUDE_IN_OMNI_TOP_30, " 
-     ,"stgf.INCLUDE_IN_PACKAGE_COMPARISON, " 
-     ,"stgf.EXCLUDE_COMPLETELY, "
-     ,"stgf.HD_IND,"
-     , "stgf.OMNI_CHANNEL_NAME_COMBINED,"
-     , "stgf.CHANNEL_ROLLUP,"
-     , "stgf.IS_LOCAL,"
-     , "stgf.IS_SPANISH,"
-     , "stgf.INCLUDE_IN_NBO,"
-     , "stgf.MOB_IN_HOME,"
-     , "stgf.MOB_OUT_OF_HOME,"
-     , "stgf.IS_SPORTS,"
-     , "stgf.CUSTOM_GENRE, "
-     ,"stgf.VCOS_GENRE, "
-     ,"stgf.COMBINED_GENRE, "
-     ,"stgf.PROGRAMMER, "
-     ,"stgf.PROGRAMMER_BUNDLE, "
-     ,"stgf.CHANNEL, "
-     ,"stgf.USE_IN_PRGRAMMER_FLAG, "
-     ,"stgf.ACTIVATE_DT, "
-     ,"stgf.DEACTIVATE_DT, "
-     ,"stgf.ACCT_SK, "
-     ,"stgf.RUN_DATE, "
-     ,"stgf.PKG_ESTBD_DT, "
-     ,"stgf.PACKAGE, "
-     ,"stgf.ETHNICITY, "
-     ,"stgf.LIFE_STAGE, "
-     ,"stgf.NEEDS_BASED_SEGMENT," 
-     ,"stgf.CUSTOMER_AGE, "
-     ,"stgf.CNX_CD  "   
-     ,"from stage.stg_flat_tuning_channel stgf join stage.date_dimension dd on datediff(day, dd.my_date , '2009-04-11') between " + str(dayValue) + " and " + str(dayValue)])
+     , "stgf.Channel_NUMBER, "
+     , "dd.my_date as CHANNEL_DT, "
+     , "(dd.my_date::string || \' \' || (stgf.CHANNEL_TS::time)::string)::timestamp as CHANNEL_TS, "
+     , "stgf.SECONDS, "
+     , "stgf.dim_omni_channel_key, "
+     , "stgf.dim_equipment_key, "
+     , "stgf.dim_account_key, "
+     , "dd.dim_date_key "
+     , " from stage.stg_fact_DM_tuning_channel stgf join stage.date_dimension dd on datediff(day, dd.my_date , '2019-04-15') between " + str(dayEndValue) + " and " + str(dayStartValue)]) + " order by CHANNEL_DT, dim_omni_channel_key, dim_account_key;"
     
-    #print ('Starting Insert for iteration ' + str(dayValue),sfQuery )
+    print ('Starting Insert for iteration ' + str(dayEndValue), ' to ' , str(dayStartValue) )
 
     cs.execute(sfQuery)
 
-    print ("Query Loaded data for " + str(i) + " days" )
+    print ("Query Loaded data for " + str(dayEndValue), " to " , str(dayStartValue) + " days " )
 
 cs.close()
 
@@ -124,6 +106,6 @@ print('All data loaded. Closing Connection....')
 
 ctx.close()
 
-print('Connection closed')
+#print('Connection closed')
 
 
