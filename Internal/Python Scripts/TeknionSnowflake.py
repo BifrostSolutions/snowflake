@@ -14,8 +14,6 @@ from datetime import timedelta
 ############    CreateSnowflakeContext     ################
 #Creates Snowflake connection object
 def Create_Snowflake_Context(ACCOUNT, USER, PASSWORD):
-    #Log In Variables 
-    
 
     # Create Connections
     ctx = snowflake.connector.connect(
@@ -25,68 +23,6 @@ def Create_Snowflake_Context(ACCOUNT, USER, PASSWORD):
     )
 
     return ctx
-
-############    CreateSnowflakeDateDim     ################
-def Create_Snowflake_Date_Dimension(SESSION, SCHEMA, TABLENAME):
-    createTable = ' '.join(["CREATE or REPLACE TABLE" 
-        , SCHEMA
-        , "." 
-        , TABLENAME
-	    ," ( Date_Key INT , "
-		," Date DATETIME, "
-		," FullDateDDMM String, "
-		," FullDateMMDD string, "
-		," DayOfMonth NUMBER,  "
-		," DaySuffix string,  "
-		," DayName String,   "
-		," DayOfWeek NUMBER, "
-		," DayOfWeekInMonth NUMBER, "
-		," DayOfWeekInYear NUMBER, "
-		," DayOfQuarter NUMBER, "
-		," DayOfYear NUMBER, "
-		," WeekOfMonth NUMBER,  "
-		," WeekOfQuarter number, "
-		," WeekOfYear Number, "
-		," Month Number,  "
-		," MonthName String, "
-		," MonthOfQuarter Number, "
-		," Quarter Number, "
-		," QuarterName String,"
-		," Year Number, "
-		," YearName String,  "
-		," MonthYear String,  "
-		," MMYYYY Number, "
-		," FirstDayOfMonth DATE, "
-		," LastDayOfMonth DATE, "
-		," FirstDayOfQuarter DATE, "
-		," LastDayOfQuarter DATE, "
-		," FirstDayOfYear DATE, "
-		," LastDayOfYear DATE, "
-		," IsWeekday NUMBER "
-        , " );"])
-
-    print('Creating Table ' + SCHEMA + '.' + TABLENAME + '....')
-
-    SESSION.execute(createTable)
-
-    print('Table ' + SCHEMA + '.' + TABLENAME + ' Created....')
-
-############    LoadSnowflakeDateDim     ###################
-def Load_Snowflake_Date_Dimension(SESSION, SCHEMA, TABLENAME, START_YEAR, END_YEAR):
-
-    AllDates = get_Date_Values(START_YEAR, END_YEAR)
-
-    for i in range(0,len(AllDates)):
-
-        insertQuery = " Insert into " + SCHEMA + "." + TABLENAME + " Select "
-
-        for date in AllDates[i]:
-            
-            insertQuery = insertQuery + "'" + str(date) + "', "
-    
-        dimDateInsert = insertQuery[0:(len(insertQuery) -2)] + ';'
-
-        SESSION.execute(dimDateInsert)
 
 ############    SetSnowflakeQueryAttributes     ###########
 
@@ -98,11 +34,16 @@ def Set_Snowflake_Query_Attributes(SESSION, WAREHOUSE, DATABASE, SCHEMA):
     usingDatabase =  "Use Database " + DATABASE + ";"
     SESSION.execute(usingDatabase)
 
-    usingSchema = "use Schema " + SCHEMA +  ";"
-    SESSION.execute(usingSchema)
+    #usingSchema = "use Schema " + SCHEMA +  ";"
+    #SESSION.execute(usingSchema)
 
-def Create_Query_History_Dimension_Model(SESSION, SCHEMA):
+############    Create_Query_History_Dimension_Model     ###########
+def Create_Dimensional_Model(SESSION, SCHEMA):
+
+    print('Creating Dimensional Model in Schema ' + SCHEMA)
+
     Create_Snowflake_Schema(SESSION, SCHEMA)
+    Create_Snowflake_Date_Dimension(SESSION, SCHEMA)
     Create_Fact_Query(SESSION, SCHEMA)
     Create_Dim_Database(SESSION, SCHEMA)
     Create_Dim_Execution_Status(SESSION, SCHEMA)
@@ -117,35 +58,98 @@ def Create_Query_History_Dimension_Model(SESSION, SCHEMA):
     Create_Dim_Warehouse_Size(SESSION, SCHEMA)
     Create_Dim_Warehouse_Type(SESSION, SCHEMA)
     Create_InsertLog(SESSION, SCHEMA)
+
+    print('Dimensional Model Created in Schema ' + SCHEMA)
     
 ############    Execute_History_Load     ########################
 
 #Imports Text file with all the queries
-#def Execute_History_Load(SESSION, SCHEMA):
+def Execute_History_Load(SESSION, SCHEMA):
+    
+    print('Loading Dimensional Model in Schema ' + SCHEMA)
 
-    #Load File
-    #f = open(file_Location, 'r')
-    #content = f.read()
-    #Queries = content.split(';')
-    #print(len(Queries))
-    #print(content)
-    #f.close()
+    SESSION.execute("Set Process_Start = (Select Current_Timestamp());")
+    SESSION.execute("Set range_Start = (Select Max(FactEndDateTime) from " + SCHEMA + ".InsertLog);")
+    SESSION.execute("Set Start_Date = (IFNULL($range_Start, DateAdd(day, -8, Current_TimeStamp())));")
+    SESSION.execute("set range_End = Current_Timestamp();")
 
-    #print('Starting Data Load....')
+    Create_Query_History_Stage_Table(SESSION)
+    print('Query History Table Created')
 
-    #for query in Queries:
-        #if(len(query) > 1):
-            #queryToRun = query + ';'
-            #SESSION.execute(queryToRun)
+    Merge_Dim_Session(SESSION, SCHEMA)
+    print('Dim_Session Updated')
 
-    #print('All data loaded. Closing Connection....')   
+    Merge_Dim_Query_Details(SESSION, SCHEMA)
+    print('Dim_Query_Details Updated')
 
-############    lastDayofMonth    #########################
+    Merge_Dim_Database(SESSION, SCHEMA)
+    print('Dim_Database Updated')
+    
+    Merge_Dim_Schema(SESSION, SCHEMA)
+    print('Dim_Schema Updated')
+
+    Merge_Dim_Query_Type(SESSION, SCHEMA)
+    print('Dim_Query_Type Updated')
+
+    Merge_Dim_User(SESSION, SCHEMA)
+    print('Dim_User Updated')
+
+    Merge_Dim_Role(SESSION, SCHEMA)
+    print('Dim_Role Updated')
+
+    Merge_Dim_Warehouse(SESSION, SCHEMA)
+    print('Dim_Warehouse Updated')
+
+    Merge_Dim_Warehouse_Size(SESSION, SCHEMA)
+    print('Dim_Warehouse_Size Updated')
+
+    Merge_Dim_Warehouse_Type(SESSION, SCHEMA)
+    print('Dim_Warehouse_Type Updated')
+
+    Merge_Dim_Execution_Status(SESSION, SCHEMA)
+    print('Dim_Execution_Status Updated')
+
+    Merge_Dim_Query_Error(SESSION, SCHEMA)
+    print('Dim_Query_Error Updated')
+
+    Merge_Fact_Query(SESSION, SCHEMA)
+    print('Fact_Query Updated')
+
+    #Get Total number of records from history table
+    SESSION.execute("Set ImportCount = (Select Count(1) from Query_History);")
+
+    Update_InsertLog(SESSION, SCHEMA)
+    print('Updating InsertLog Table')
+
+    SESSION.execute("DROP TABLE Query_History;")
+
+    print('Load Completed...')
+
+
+############    LoadSnowflakeDateDim     ###################
+def Load_Snowflake_Date_Dimension(SESSION, SCHEMA, START_YEAR, END_YEAR):
+
+    AllDates = get_Date_Values(START_YEAR, END_YEAR)
+
+    for i in range(0,len(AllDates)):
+
+        insertQuery = " Insert into " + SCHEMA + ".Dim_Date Select "
+
+        for date in AllDates[i]:
+            
+            insertQuery = insertQuery + "'" + str(date) + "', "
+    
+        dimDateInsert = insertQuery[0:(len(insertQuery) -2)] + ';'
+
+        SESSION.execute(dimDateInsert)
+
+
+############    last_Day_Of_Month    #########################
 def last_Day_Of_Month(any_day):
     next_month = any_day.replace(day=28) + datetime.timedelta(days=4)  # this is to offset for Feb
     return next_month - datetime.timedelta(days=next_month.day)
 
-############    getDateValues     #########################
+############    get_Date_Values     #########################
 
 def get_Date_Values(start_Year, End_Year):
     startYear = start_Year
@@ -481,6 +485,50 @@ def get_Date_Values(start_Year, End_Year):
 
     return Dates
 
+############    CreateSnowflakeDateDim     ################
+def Create_Snowflake_Date_Dimension(SESSION, SCHEMA):
+    createTable = ' '.join(["CREATE or REPLACE TABLE " 
+        , SCHEMA
+        , ".Dim_Date"
+	    ," ( Date_Key INT , "
+		," Date DATETIME, "
+		," FullDateDDMM String, "
+		," FullDateMMDD string, "
+		," DayOfMonth NUMBER,  "
+		," DaySuffix string,  "
+		," DayName String,   "
+		," DayOfWeek NUMBER, "
+		," DayOfWeekInMonth NUMBER, "
+		," DayOfWeekInYear NUMBER, "
+		," DayOfQuarter NUMBER, "
+		," DayOfYear NUMBER, "
+		," WeekOfMonth NUMBER,  "
+		," WeekOfQuarter number, "
+		," WeekOfYear Number, "
+		," Month Number,  "
+		," MonthName String, "
+		," MonthOfQuarter Number, "
+		," Quarter Number, "
+		," QuarterName String,"
+		," Year Number, "
+		," YearName String,  "
+		," MonthYear String,  "
+		," MMYYYY Number, "
+		," FirstDayOfMonth DATE, "
+		," LastDayOfMonth DATE, "
+		," FirstDayOfQuarter DATE, "
+		," LastDayOfQuarter DATE, "
+		," FirstDayOfYear DATE, "
+		," LastDayOfYear DATE, "
+		," IsWeekday NUMBER "
+        , " );"])
+
+    print('Creating Table ' + SCHEMA + '.Dim_Date....')
+
+    SESSION.execute(createTable)
+
+    print('Table ' + SCHEMA + '.Dim_Date Created....')
+
 ###############    Create Session Dim     #########################
 def Create_Dim_Session(SESSION , SCHEMA):
     queryText = ''.join(["Create or Replace Table "
@@ -592,7 +640,7 @@ def Create_Dim_Query_Type(SESSION , SCHEMA):
     , ".dim_Query_Type "
     , "( "
     , "Query_Type_Key int identity(1,1) "
-    , ", Query_Type_Name String "
+    , ", Query_Type String "
     , ", Created_Date datetime default CURRENT_TIMESTAMP() "
     , ", Modified_Date datetime default CURRENT_TIMESTAMP() "
     , ", IsActive Number default 1 "
@@ -813,6 +861,23 @@ def Create_InsertLog(SESSION , SCHEMA):
 
     SESSION.execute(queryText)
 
+###############    Update Insert Log   #########################
+def Update_InsertLog(SESSION , SCHEMA):
+    #Update Log Table
+    queryText = ''.join(["Insert into "
+    , SCHEMA
+    , ".InsertLog(FactEndDateTime, Last_QueryFact_ID, Total_Records_Imported, Process_Start, Process_End) "
+    , " Select Max(End_Time) "
+    , ", max(QueryFact_ID) "
+    , ", $ImportCount "
+    , ", $Process_Start "
+    , ", Current_TimeStamp() "
+    , "from "
+    , SCHEMA
+    , ".Fact_query;"])
+
+    SESSION.execute(queryText)
+
 ###############    Create Schema   #########################
 def Create_Snowflake_Schema(SESSION , SCHEMA):
     queryText = ''.join(["Create or Replace Schema "
@@ -867,3 +932,485 @@ def Create_Fact_Query(SESSION , SCHEMA):
     , ");  "])
 
     SESSION.execute(queryText)
+    
+###############    Merge Dim Session    #########################
+def Merge_Dim_Session(SESSION , SCHEMA):
+    queryText = ''.join(["Merge into  "
+    , SCHEMA
+    , ".Dim_Session as Target "
+    ," using(select Distinct Session_ID "
+    ,"        from Query_History "
+    ,"        where Session_ID is not null) as Source "
+    ,"    ON Target.Session_ID = Source.Session_ID "
+    ," WHEN NOT Matched "
+    ," THEN INSERT (Session_ID "
+    ,"            , Created_Date "
+    ,"            , Modified_Date) "
+    ,"    Values(Source.Session_ID "
+    ,"        , CURRENT_TIMESTAMP()::dateTime "
+    ,"        , CURRENT_TIMESTAMP()::dateTime); "])
+
+    SESSION.execute(queryText)
+
+###############    Merge Dim Query Details    #########################
+def Merge_Dim_Query_Details(SESSION , SCHEMA):
+    queryText = ''.join(["Merge into  "
+    , SCHEMA
+    , ".Dim_Query_Details as Target "
+    ," using(select Distinct Query_Text "
+    ,"        from Query_History "
+    ,"        where Query_Text is not null) as Source "
+    ,"    ON Target.Query_Text = Source.Query_Text "
+    ," WHEN NOT Matched "
+    ," THEN INSERT (Query_Text "
+    ,"            , Created_Date "
+    ,"            , Modified_Date) "
+    ,"    Values(Source.Query_Text "
+    ,"        , CURRENT_TIMESTAMP()::dateTime "
+    ,"        , CURRENT_TIMESTAMP()::dateTime); "])
+
+    SESSION.execute(queryText)
+
+###############    Merge Dim Database    #########################
+def Merge_Dim_Database(SESSION , SCHEMA):
+    queryText = ''.join(["Merge into "
+    , SCHEMA
+    , ".Dim_Database as Target "
+    ,"using(select Distinct Database_Name "
+    ,"        from Query_History "
+    ,"        where database_Name is not null) as Source "
+    ,"    ON Target.Database_Name = Source.Database_Name "
+    ," WHEN NOT Matched "
+    ," THEN INSERT (Database_Name "
+    ,"            , Created_Date "
+    ,"            , Modified_Date) "
+    ,"    Values(Source.Database_Name "
+    ,"        , CURRENT_TIMESTAMP()::dateTime "
+    ,"        , CURRENT_TIMESTAMP()::dateTime); "])
+
+    SESSION.execute(queryText)
+
+###############    Merge Dim Schema    #########################
+def Merge_Dim_Schema(SESSION , SCHEMA):
+    queryText = ''.join(["Merge into "
+    , SCHEMA
+    , ".Dim_Schema as Target "
+    ," using(select Distinct Schema_Name "
+    ,"        from Query_History "
+    ,"        where Schema_Name is not null) as Source "
+    ,"    ON Target.Schema_Name = Source.Schema_Name "
+    ," WHEN NOT Matched "
+    ," THEN INSERT (Schema_Name "
+    ,"            , Created_Date "
+    ,"            , Modified_Date) "
+    ,"    Values(Source.Schema_Name "
+    ,"        , CURRENT_TIMESTAMP()::dateTime "
+    ,"        , CURRENT_TIMESTAMP()::dateTime); "])
+
+    SESSION.execute(queryText)
+
+###############    Merge Dim User    #########################
+def Merge_Dim_User(SESSION , SCHEMA):
+    queryText = ''.join([" Merge into "
+    , SCHEMA
+    , ".dim_User as Target "
+    ," using(select Distinct User_Name "
+    ,"         from Query_History "
+    ,"         where User_Name is not null) as Source "
+    ,"     ON Target.User_Name = Source.User_Name "
+    ," WHEN NOT Matched "
+    ," THEN INSERT (User_Name "
+    ,"             , Created_Date "
+    ,"             , Modified_Date) "
+    ,"     Values(Source.User_Name "
+    ,"         , CURRENT_TIMESTAMP()::dateTime "
+    ,"         , CURRENT_TIMESTAMP()::dateTime);  "])
+
+    SESSION.execute(queryText)
+
+###############    Merge Dim Query Type    #########################
+def Merge_Dim_Query_Type(SESSION , SCHEMA):
+    queryText = ''.join(["Merge into "
+    , SCHEMA
+    , ".dim_Query_Type as Target "
+    ," using(select Distinct Query_Type "
+    ,"        from Query_History "
+    ,"        where Query_Type is not null) as Source "
+    ,"    ON Target.Query_Type = Source.Query_Type "
+    ," WHEN NOT Matched "
+    ," THEN INSERT (Query_Type "
+    ,"            , Created_Date "
+    ,"            , Modified_Date) "
+    ,"    Values(Source.Query_Type "
+    ,"        , CURRENT_TIMESTAMP()::dateTime "
+    ,"        , CURRENT_TIMESTAMP()::dateTime); "])
+
+    SESSION.execute(queryText)
+    
+###############    Merge Dim Role   #########################
+def Merge_Dim_Role(SESSION , SCHEMA):
+    queryText = ''.join(["Merge into "
+    , SCHEMA
+    , ".dim_Role as Target  "
+    ," using(select Distinct Role_Name "
+    ,"        from Query_History "
+    ,"        where Role_Name is not null) as Source "
+    ,"    ON Target.Role_Name = Source.Role_Name "
+    ," WHEN NOT Matched "
+    ," THEN INSERT (Role_Name "
+    ,"            , Created_Date "
+    ,"            , Modified_Date) "
+    ,"    Values(Source.Role_Name "
+    ,"        , CURRENT_TIMESTAMP()::dateTime "
+    ,"        , CURRENT_TIMESTAMP()::dateTime); "])
+
+    SESSION.execute(queryText)
+
+###############    Merge Dim Warehouse   #########################
+def Merge_Dim_Warehouse(SESSION , SCHEMA):
+    queryText = ''.join(["Merge into "
+    , SCHEMA
+    , ".dim_Warehouse as Target  "
+    ," using(select Distinct Warehouse_Name "
+    ,"         from Query_History "
+    ,"         where Warehouse_Name is not null) as Source "
+    ,"     ON Target.Warehouse_Name = Source.Warehouse_Name "
+    ," WHEN NOT Matched "
+    ," THEN INSERT (Warehouse_Name "
+    ,"             , Created_Date "
+    ,"             , Modified_Date) "
+    ,"     Values(Source.Warehouse_Name "
+    ,"         , CURRENT_TIMESTAMP()::dateTime "
+    ,"         , CURRENT_TIMESTAMP()::dateTime);  "])
+
+    SESSION.execute(queryText)
+
+###############    Merge Dim Warehouse Size   #########################
+def Merge_Dim_Warehouse_Size(SESSION , SCHEMA):
+    queryText = ''.join(["Merge into "
+    , SCHEMA
+    , ".dim_Warehouse_Size as Target  "
+    ," using(select Distinct Warehouse_Size "
+    ,"         from Query_History "
+    ,"         where Warehouse_Size is not null) as Source "
+    ,"     ON Target.Warehouse_Size = Source.Warehouse_Size "
+    ," WHEN NOT Matched "
+    ," THEN INSERT (Warehouse_Size "
+    ,"             , Created_Date "
+    ,"             , Modified_Date) "
+    ,"     Values(Source.Warehouse_Size "
+    ,"         , CURRENT_TIMESTAMP()::dateTime "
+    ,"         , CURRENT_TIMESTAMP()::dateTime);  "])
+
+    SESSION.execute(queryText)
+
+###############    Merge Dim Warehouse Type   #########################
+def Merge_Dim_Warehouse_Type(SESSION , SCHEMA):
+    queryText = ''.join(["Merge into "
+    , SCHEMA
+    , ".dim_Warehouse_Type as Target  "
+    ," using(select Distinct Warehouse_Type "
+    ,"         from Query_History "
+    ,"         where Warehouse_Type is not null) as Source "
+    ,"     ON Target.Warehouse_Type = Source.Warehouse_Type "
+    ," WHEN NOT Matched "
+    ," THEN INSERT (Warehouse_Type "
+    ,"             , Created_Date "
+    ,"             , Modified_Date) "
+    ,"     Values(Source.Warehouse_Type "
+    ,"         , CURRENT_TIMESTAMP()::dateTime "
+    ,"         , CURRENT_TIMESTAMP()::dateTime);  "])
+
+    SESSION.execute(queryText)
+
+###############    Merge Dim Execution Status  #########################
+def Merge_Dim_Execution_Status(SESSION , SCHEMA):
+    queryText = ''.join(["Merge into "
+    , SCHEMA
+    , ".dim_Execution_Status as Target "
+    ," using(select Distinct Execution_Status "
+    ,"         from Query_History "
+    ,"         where Execution_Status is not null) as Source "
+    ,"     ON Target.Execution_Status = Source.Execution_Status "
+    ," WHEN NOT Matched "
+    ," THEN INSERT (Execution_Status "
+    ,"             , Created_Date "
+    ,"             , Modified_Date) "
+    ,"     Values(Source.Execution_Status "
+    ,"         , CURRENT_TIMESTAMP()::dateTime "
+    ,"         , CURRENT_TIMESTAMP()::dateTime);  "])
+
+    SESSION.execute(queryText)
+    
+###############    Merge Dim Query Error  ###############################
+def Merge_Dim_Query_Error(SESSION , SCHEMA):
+    queryText = ''.join(["Merge into "
+    , SCHEMA
+    , ".dim_Query_Error as Target "
+    ," using(select Distinct  "
+    ,"         Query_ID "
+    ,"         , Error_Code "
+    ,"         , Error_Message "
+    ,"         from Query_History "
+    ,"         where Error_Code is not null) as Source "
+    ,"     ON Target.Query_Id = Source.Query_Id "
+    ,"     AND  Target.Error_Code = Source.Error_Code "
+    ," WHEN NOT Matched "
+    ," THEN INSERT (Query_Id "
+    ,"             , Error_Code "
+    ,"             , Error_Message "
+    ,"             , Created_Date "
+    ,"             , Modified_Date) "
+    ,"     Values(Source.Query_Id "
+    ,"         , Source.Error_Code "
+    ,"         , Source.Error_Message "
+    ,"         , CURRENT_TIMESTAMP()::dateTime "
+    ,"         , CURRENT_TIMESTAMP()::dateTime);  "])
+
+    SESSION.execute(queryText)
+
+###############    Merge Dim Execution Status  #########################
+def Merge_Fact_Query(SESSION , SCHEMA):
+    queryText = ''.join(["Merge Into "
+    , SCHEMA
+    , ".Fact_Query as Target "
+    ," Using(Select qh.Query_ID "
+    ,"       , qh.Cluster_Number "
+    ,"       , qh.Query_Tag "
+    ,"       , qh.Start_Time "
+    ,"       , qh.End_Time "
+    ,"       , qh.TOTAL_ELAPSED_TIME "
+    ,"       , qh.BYTES_SCANNED  "
+    ,"       , qh.ROWS_PRODUCED  "
+    ,"       , qh.COMPILATION_TIME " 
+    ,"       , qh.EXECUTION_TIME  "
+    ,"       , qh.QUEUED_PROVISIONING_TIME  "
+    ,"       , qh.QUEUED_REPAIR_TIME	 "
+    ,"       , qh.QUEUED_OVERLOAD_TIME  "
+    ,"       , qh.TRANSACTION_BLOCKED_TIME " 
+    ,"       , qh.OUTBOUND_DATA_TRANSFER_CLOUD " 
+    ,"       , qh.OUTBOUND_DATA_TRANSFER_REGION  "
+    ,"       , qh.OUTBOUND_DATA_TRANSFER_BYTES  "
+    ,"       , qh.INBOUND_DATA_TRANSFER_CLOUD  "
+    ,"       , qh.INBOUND_DATA_TRANSFER_REGION  "
+    ,"       , qh.INBOUND_DATA_TRANSFER_BYTES  "
+    ,"       , IFNULL(qd.Query_Detail_Key,-1) as Query_Detail_Key "
+    ,"       , IFNULL(dss.Session_Key,-1) as Session_Key "
+    ,"       , IFNULL(ddb.Database_Key,-1) as Database_Key "
+    ,"       , IFNULL(ds.Schema_Key,-1) as Schema_Key "
+    ,"       , IFNULL(dqt.Query_Type_Key,-1) as Query_Type_Key "
+    ,"       , IFNULL(du.User_Key,-1) as User_Key "
+    ,"       , IFNULL(dr.Role_Key,-1) as Role_Key "
+    ,"       , IFNULL(dw.Warehouse_Key,-1) as Warehouse_Key "
+    ,"       , IFNULL(dwt.Warehouse_Type_Key,-1) as Warehouse_Type_Key "
+    ,"       , IFNULL(dws.Warehouse_Size_Key,-1) as Warehouse_Size_Key "
+    ,"       , IFNULL(des.Execution_Status_Key,-1) as Execution_Status_Key "
+    ,"       , IFNULL(de.Error_Key,-1) as Error_Key "
+    ,"       , sdd.Date_Key as Start_Date_Key "
+    ,"       , edd.Date_Key as End_Date_Key "
+    ,"       from Query_History qh "
+    ,"       Left join "
+    , SCHEMA
+    , ".Dim_Session dss on qh.Session_ID = dss.Session_ID "
+    ,"       left join "
+    , SCHEMA
+    , ".Dim_Query_Details qd on qh.Query_Text = qd.Query_Text "
+    ,"       left join "
+    , SCHEMA
+    , ".Dim_Database as ddb on qh.Database_Name = ddb.Database_Name "
+    ,"       left join "
+    , SCHEMA
+    , ".Dim_Schema ds on qh.Schema_Name = ds.Schema_Name "
+    ,"       left join "
+    , SCHEMA
+    , ".dim_Query_Type dqt on qh.Query_Type = dqt.Query_Type "
+    ,"       left join "
+    , SCHEMA
+    , ".dim_User du on qh.User_Name = du.User_Name "
+    ,"       left join "
+    , SCHEMA
+    , ".dim_Role dr on qh.Role_Name = dr.Role_Name "
+    ,"       left join "
+    , SCHEMA
+    , ".dim_Warehouse dw on qh.Warehouse_Name = dw.Warehouse_Name "
+    ,"       left join "
+    , SCHEMA
+    , ".dim_Warehouse_Size dws on qh.Warehouse_Size = dws.Warehouse_Size "
+    ,"       left join "
+    , SCHEMA
+    , ".dim_Warehouse_Type dwt on qh.Warehouse_Type = dwt.Warehouse_Type "
+    ,"       Left join "
+    , SCHEMA
+    , ".dim_Execution_Status des on qh.Execution_Status = des.Execution_Status  "
+    ,"       Left join "
+    , SCHEMA
+    , ".dim_Query_Error de on qh.Query_Id = de.Query_Id "
+    ,"                                                and qh.Error_Code = de.Error_Code "
+    ,"       left join QueryHistory.Dim_Date as sdd on qh.Start_Date = sdd.Date "
+    ,"       left join QueryHistory.Dim_Date as edd on qh.End_Date = edd.Date) as Source "
+    ," ON TARGET.Session_Key = Source.Session_Key "
+    ," AND Target.Query_ID = Source.Query_ID "
+    ," WHEN NOT MATCHED  "
+    ," THEN INSERT (Query_ID "
+    ,"              , Cluster_Number  "
+    ,"              , Query_Tag  "
+    ,"              , Start_Time  "
+    ,"              , End_Time  "
+    ,"              , TOTAL_ELAPSED_TIME  "
+    ,"              , BYTES_SCANNED  "
+    ,"              , ROWS_PRODUCED "
+    ,"              , COMPILATION_TIME " 
+    ,"              , EXECUTION_TIME  "
+    ,"              , QUEUED_PROVISIONING_TIME  "
+    ,"              , QUEUED_REPAIR_TIME "
+    ,"              , QUEUED_OVERLOAD_TIME " 
+    ,"              , TRANSACTION_BLOCKED_TIME  "
+    ,"              , OUTBOUND_DATA_TRANSFER_CLOUD  "
+    ,"              , OUTBOUND_DATA_TRANSFER_REGION  "
+    ,"              , OUTBOUND_DATA_TRANSFER_BYTES  "
+    ,"              , INBOUND_DATA_TRANSFER_CLOUD  "
+    ,"              , INBOUND_DATA_TRANSFER_REGION  "
+    ,"              , INBOUND_DATA_TRANSFER_BYTES  "
+    ,"              , Query_Detail_Key  "
+    ,"              , Session_Key  "
+    ,"              , Database_Key  "
+    ,"              , Schema_Key  "
+    ,"              , Query_Type_Key  "
+    ,"              , User_Key  "
+    ,"              , Role_Key  "
+    ,"              , Warehouse_Key  "
+    ,"              , Warehouse_Size_Key  "
+    ,"              , Warehouse_Type_Key  "
+    ,"              , Execution_Status_Key  "
+    ,"              , Error_Key  "
+    ,"              , Start_Date_Key "
+    ,"              , End_Date_Key) "
+    ," Values (Source.Query_ID "
+    ,"          , Source.Cluster_Number  "
+    ,"          , Source.Query_Tag  "
+    ,"          , Source.Start_Time  "
+    ,"          , Source.End_Time  "
+    ,"          , Source.TOTAL_ELAPSED_TIME  "
+    ,"          , Source.BYTES_SCANNED  "
+    ,"          , Source.ROWS_PRODUCED "
+    ,"          , Source.COMPILATION_TIME " 
+    ,"          , Source.EXECUTION_TIME  "
+    ,"          , Source.QUEUED_PROVISIONING_TIME  "
+    ,"          , Source.QUEUED_REPAIR_TIME "
+    ,"          , Source.QUEUED_OVERLOAD_TIME " 
+    ,"          , Source.TRANSACTION_BLOCKED_TIME  "
+    ,"          , Source.OUTBOUND_DATA_TRANSFER_CLOUD  "
+    ,"          , Source.OUTBOUND_DATA_TRANSFER_REGION  "
+    ,"          , Source.OUTBOUND_DATA_TRANSFER_BYTES  "
+    ,"          , Source.INBOUND_DATA_TRANSFER_CLOUD  "
+    ,"          , Source.INBOUND_DATA_TRANSFER_REGION  "
+    ,"          , Source.INBOUND_DATA_TRANSFER_BYTES  "
+    ,"          , Source.Query_Detail_Key  "
+    ,"          , Source.Session_Key  "
+    ,"          , Source.Database_Key  "
+    ,"          , Source.Schema_Key  "
+    ,"          , Source.Query_Type_Key  "
+    ,"          , Source.User_Key  "
+    ,"          , Source.Role_Key  "
+    ,"          , Source.Warehouse_Key  "
+    ,"          , Source.Warehouse_Size_Key  "
+    ,"          , Source.Warehouse_Type_Key  "
+    ,"          , Source.Execution_Status_Key  "
+    ,"          , Source.Error_Key  "
+    ,"          , Source.Start_Date_Key "
+    ,"          , Source.End_Date_Key);  "])
+
+    SESSION.execute(queryText)
+
+###############    Merge Dim Execution Status  #########################
+def Create_Query_History_Stage_Table(SESSION):
+    #Create Temp table to hold all history data from date range above
+    queryText = ''.join(["CREATE OR REPLACE TEMPORARY TABLE Query_History ( "
+    ," Query_ID String "
+    ," , Query_Text String "
+    ," , Database_Name String "
+    ," , Schema_Name String "
+    ," , Query_Type String "
+    ," , Session_ID number "
+    ," , User_Name String "
+    ," , Role_Name String "
+    ," , Warehouse_Name String "
+    ," , Warehouse_Size String "
+    ," , Warehouse_Type String "
+    ," , Cluster_Number Number "
+    ," , Query_Tag String "
+    ," , Execution_Status String "
+    ," , Error_Code number "
+    ," , Error_Message String "
+    ," , Start_Time timestamp "
+    ," , End_Time timestamp "
+    ," , TOTAL_ELAPSED_TIME NUMBER "
+    ," , BYTES_SCANNED NUMBER "
+    ," , ROWS_PRODUCED NUMBER "
+    ," , COMPILATION_TIME NUMBER "
+    ," , EXECUTION_TIME NUMBER "
+    ," , QUEUED_PROVISIONING_TIME NUMBER "
+    ," , QUEUED_REPAIR_TIME	NUMBER "
+    ," , QUEUED_OVERLOAD_TIME NUMBER "
+    ," , TRANSACTION_BLOCKED_TIME NUMBER "
+    ," , OUTBOUND_DATA_TRANSFER_CLOUD TEXT "
+    ," , OUTBOUND_DATA_TRANSFER_REGION TEXT "
+    ," , OUTBOUND_DATA_TRANSFER_BYTES NUMBER "
+    ," , INBOUND_DATA_TRANSFER_CLOUD TEXT "
+    ," , INBOUND_DATA_TRANSFER_REGION TEXT "
+    ," , INBOUND_DATA_TRANSFER_BYTES NUMBER "
+    ," , Start_Date Date "
+    ," , Start_TS Time "
+    ," , End_Date Date "
+    ," , End_TS Time "
+    ," ) "
+    ," as  " 
+    ," Select Query_ID  "
+    ,"     , Query_Text  "
+    ,"     , Database_Name " 
+    ,"     , Schema_Name  "
+    ,"     , Query_Type  "
+    ,"     , Session_ID  "
+    ,"     , User_Name "
+    ,"     , Role_Name  "
+    ,"     , Warehouse_Name  "
+    ,"     , Warehouse_Size  "
+    ,"     , Warehouse_Type  "
+    ,"     , Cluster_Number  "
+    ,"     , Query_Tag  "
+    ,"     , Execution_Status  "
+    ,"     , Error_Code  "
+    ,"     , Error_Message " 
+    ,"     , Start_Time::DateTime "
+    ,"     , End_Time::DateTime "
+    ,"     , TOTAL_ELAPSED_TIME  "
+    ,"     , BYTES_SCANNED  "
+    ,"     , ROWS_PRODUCED  "
+    ,"     , COMPILATION_TIME " 
+    ,"     , EXECUTION_TIME  "
+    ,"     , QUEUED_PROVISIONING_TIME  "
+    ,"     , QUEUED_REPAIR_TIME	 "
+    ,"     , QUEUED_OVERLOAD_TIME  "
+    ,"     , TRANSACTION_BLOCKED_TIME " 
+    ,"     , OUTBOUND_DATA_TRANSFER_CLOUD  "
+    ,"     , OUTBOUND_DATA_TRANSFER_REGION  "
+    ,"     , OUTBOUND_DATA_TRANSFER_BYTES  "
+    ,"     , INBOUND_DATA_TRANSFER_CLOUD  "
+    ,"     , INBOUND_DATA_TRANSFER_REGION  "
+    ,"     , INBOUND_DATA_TRANSFER_BYTES  "
+    ,"     , Start_Time::Date as Start_Date "
+    ,"     , Start_Time::Time as Start_TS "
+    ,"     , End_Time::Date as End_Date "
+    ,"     , End_Time::Time as End_TS "
+    ," from table(information_schema.query_history( "
+    ," end_time_range_start => to_timestamp_ltz($range_Start), "
+    ," end_time_range_end => to_timestamp_ltz($range_End), "
+    ," RESULT_LIMIT => 10000 "
+    ," )) "
+    ," ORDER BY start_time desc "
+    ," , Query_Text ASC "
+    ," , TOTAL_ELAPSED_TIME ASC;  "])
+
+    SESSION.execute(queryText)
+
+

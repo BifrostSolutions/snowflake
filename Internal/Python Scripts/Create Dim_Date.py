@@ -18,44 +18,55 @@ Warehouse = 'DEMO_WH'
 Database = 'CIRWIN_Sandbox'
 
 #Add Schema together for a single transaction
-Schema = 'TestingPython'
+Schema = 'TestingAutomation'
 
-#Table name
-TableName = 'Dim_Date'
+start_Year = 1990
 
-#file_Location = "C:\\Users\\cirwin\\OneDrive - Teknion Data Solutions\\Projects\\snowflake\\Internal\\QueryFile.txt"
-
-start_Year = 1975
-
-end_Year = 1976
+end_Year = 2030
 
 ###########################################################
 ###############    Execute Process    #####################
 
 # Create Snowflake Session
-ctx = TeknionSnowflake.Create_Snowflake_Context(Account, User, Password)
+#ctx = TeknionSnowflake.Create_Snowflake_Context(Account, User, Password)
 
 #Create Session for Snowflake query to execute.
-cs = ctx.cursor()
+#cs = ctx.cursor()
 
 ##Set Warehouse, SChema and database. 
-TeknionSnowflake.Set_Snowflake_Query_Attributes(cs, Warehouse, Database, Schema)
+#TeknionSnowflake.Set_Snowflake_Query_Attributes(cs, Warehouse, Database, Schema)
 
-print('Creating Dimensional Model')
-TeknionSnowflake.Create_Query_History_Dimension_Model(cs, Schema)
+##Create the Dimensional Model 
+TeknionSnowflake.Create_Dimensional_Model(cs, Schema)
 
-print('Building Date Dimension')
-
-TeknionSnowflake.Create_Snowflake_Date_Dimension(cs, Schema, TableName)
-
+##Load Dimiensional Model
 print('Loading Date Dimension....')
+TeknionSnowflake.Load_Snowflake_Date_Dimension(cs, Schema, start_Year, end_Year)
+print('Date Dimension Loaded....')
 
-TeknionSnowflake.Load_Snowflake_Date_Dimension(cs, Schema, TableName, start_Year, end_Year)
 
-print('Date Dimension Loaded')
+##Execute History Load
+TeknionSnowflake.Execute_History_Load(cs, Schema)
+
+
+##Close Session
 cs.close()
 
 #Closing Connection
 ctx.close()
 
 print('Connection closed')
+
+
+#print('Creating Dimensional Model')
+#TeknionSnowflake.Create_Query_History_Dimension_Model(cs, Schema)
+
+#
+
+#TeknionSnowflake.Create_Snowflake_Date_Dimension(cs, Schema, TableName)
+
+#
+
+#TeknionSnowflake.Load_Snowflake_Date_Dimension(cs, Schema, TableName, start_Year, end_Year)
+
+#print('Date Dimension Loaded')
