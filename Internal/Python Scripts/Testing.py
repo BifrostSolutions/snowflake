@@ -1,32 +1,46 @@
+###################    Import Libraies    #################
 import TeknionSnowflake
 
-start_Year = 1990
+###################    Variables    #######################
+#Snowflake Account 
+Account = 'Teknion'
 
-end_Year = 1991
+#Snowflake User Account
+User = 'Cirwin'
 
+#User Password
+Password = 'Cmimln!43'
+
+#Snowflake Warehouse
+Warehouse = 'DEMO_WH'
+
+#Add Schema and database together for a single transaction
+Database = 'CIRWIN_Sandbox'
+
+#Add Schema together for a single transaction
 Schema = 'TestingAutomation'
 
-AllDates = TeknionSnowflake.get_Date_Values(start_Year, end_Year)
+start_Year = 2000
 
-selectQuery = ''
+end_Year = 2020
 
-insertQuery = " Insert into " + Schema + ".Dim_Date Select * from ("
+# Create Snowflake Session
+ctx = TeknionSnowflake.Create_Snowflake_Context(Account, User, Password)
 
-for i in range(0,len(AllDates)):
+#Create Session for Snowflake query to execute.
+cs = ctx.cursor()
 
-    if i == 0:
+##Set Warehouse, SChema and database. 
+TeknionSnowflake.Set_Snowflake_Query_Attributes(cs, Warehouse, Database, Schema)
 
-        selectQuery = selectQuery + ' (Select '
-    
-    else:
-        selectQuery = selectQuery + ') Union ALL (Select '
+TeknionSnowflake.Create_Dimensional_Model(cs, Schema)
 
-    for date in AllDates[i]:
-        
-        selectQuery = selectQuery + "'" + str(date) + "', "
+TeknionSnowflake.Load_Snowflake_Date_Dimension(cs, Schema, start_Year, end_Year)
 
-    dimDateInsert = (selectQuery[0:(len(selectQuery) -2)] + ')').replace(', )', ')')
+TeknionSnowflake.Execute_History_Load(cs, Schema)
 
-insertQuery =  insertQuery + dimDateInsert + ')'
-#SESSION.execute(dimDateInsert)
-print(insertQuery)
+##Close Session
+cs.close()
+
+#Closing Connection
+ctx.close()

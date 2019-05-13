@@ -129,20 +129,36 @@ def Execute_History_Load(SESSION, SCHEMA):
 ############    LoadSnowflakeDateDim     ###################
 def Load_Snowflake_Date_Dimension(SESSION, SCHEMA, START_YEAR, END_YEAR):
 
+    print('Begin Load of Dim_Date for Years between ' + str(START_YEAR) + ' and ' + str(END_YEAR))
+
     AllDates = get_Date_Values(START_YEAR, END_YEAR)
+
+    selectQuery = ''
+
+    insertQuery = " Insert into " + SCHEMA + ".Dim_Date Select * from ("
 
     for i in range(0,len(AllDates)):
 
-        insertQuery = " Insert into " + SCHEMA + ".Dim_Date Select "
+        if i == 0:
 
+            selectQuery = selectQuery + ' (Select '
+        
+        else:
+            selectQuery = selectQuery + ') Union ALL (Select '
+
+        columnName = 0
         for date in AllDates[i]:
-            
-            insertQuery = insertQuery + "'" + str(date) + "', "
-    
-        dimDateInsert = insertQuery[0:(len(insertQuery) -2)] + ';'
 
-        SESSION.execute(dimDateInsert)
+            selectQuery = selectQuery + "'" + str(date) + "' as Column" + str(columnName) + ", "
 
+            columnName = columnName + 1
+
+        dimDateInsert = (selectQuery[0:(len(selectQuery) -2)] + ')').replace(', )', ')')
+
+    insertQuery =  insertQuery + dimDateInsert + ')'
+
+    print('Inserting data into Dim_Date Table...')
+    SESSION.execute(insertQuery)
 
 ############    last_Day_Of_Month    #########################
 def last_Day_Of_Month(any_day):
