@@ -33,9 +33,9 @@ cs = ctx.cursor()
 ##Set Warehouse, SChema and database. 
 TeknionSnowflake.Set_Snowflake_Query_Attributes(cs, Warehouse, Database, Schema)
 
-TeknionSnowflake.Create_Dimensional_Model(cs, Schema)
+#TeknionSnowflake.Create_Dimensional_Model(cs, Schema)
 
-TeknionSnowflake.Load_Snowflake_Date_Dimension(cs, Schema, start_Year, end_Year)
+#TeknionSnowflake.Load_Snowflake_Date_Dimension(cs, Schema, start_Year, end_Year)
 
 TeknionSnowflake.Execute_History_Load(cs, Schema)
 
